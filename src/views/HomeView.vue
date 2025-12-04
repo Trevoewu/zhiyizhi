@@ -12,31 +12,31 @@ const navigateToDetail = (id) => {
   <div class="scroll-container">
     <section class="section section-1">
       <div class="content">
-        <h1>Travel Records</h1>
+        <h1>旅行</h1>
         <div class="interactive-block" @click="navigateToDetail(1)">
-          <span>View Journey</span>
+          <span>查看旅程</span>
         </div>
-        <p>Explore the world with me</p>
+        <p>和我一起探索世界</p>
       </div>
     </section>
     
     <section class="section section-2">
       <div class="content">
-        <h1>Pet Records</h1>
+        <h1>乖康</h1>
         <div class="interactive-block" @click="navigateToDetail(2)">
-          <span>Meet My Pets</span>
+          <span>遇见我的宠物</span>
         </div>
-        <p>Cute moments & memories</p>
+        <p>可爱的瞬间与回忆</p>
       </div>
     </section>
     
     <section class="section section-3">
       <div class="content">
-        <h1>My Library</h1>
+        <h1>日常</h1>
         <div class="interactive-block" @click="navigateToDetail(3)">
-          <span>Enter Library</span>
+          <span>进入书房</span>
         </div>
-        <p>Diaries & Collections</p>
+        <p>日记与收藏</p>
       </div>
     </section>
   </div>
@@ -110,15 +110,12 @@ const navigateToDetail = (id) => {
 h1 {
   font-size: 3rem;
   margin: 0;
-  background: linear-gradient(to right, #fff, #646cff);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: white; /* Changed from gradient to white */
 }
 
 p {
   font-size: 1rem;
-  color: #666;
+  color: #ccc; /* Lighter grey/white for better visibility */
   margin: 0;
 }
 
