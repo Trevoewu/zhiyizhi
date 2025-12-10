@@ -48,7 +48,6 @@ const navigateToDetail = (id) => {
   height: 100vh;
   width: 100vw;
   overflow-y: scroll;
-  scroll-snap-type: y mandatory;
   background-color: #040404;
   
   &::-webkit-scrollbar {
@@ -61,7 +60,6 @@ const navigateToDetail = (id) => {
 .section {
   height: 100vh;
   width: 100vw;
-  scroll-snap-align: start;
   display: flex;
   align-items: center;
   justify-content: center;
