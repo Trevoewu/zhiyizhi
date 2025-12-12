@@ -10,10 +10,12 @@ const id = route.params.id;
 const isLibrary = computed(() => id === '3');
 const isTravel = computed(() => id === '1');
 const isPets = computed(() => id === '2');
+const isGuzi = computed(() => id === '4');
 
 const pageTitle = computed(() => {
   if (isTravel.value) return '旅行';
   if (isPets.value) return '乖康';
+  if (isGuzi.value) return '谷子';
   return '日常';
 });
 
@@ -28,12 +30,16 @@ const selectTape = (tapeId) => {
 // Reactive Data
 const travelData = ref([]);
 const petData = ref([]);
+const guziData = ref([]);
 
 // Fetch Data from Supabase
 onMounted(async () => {
   if (isLibrary.value) return; // Library is static shelves
 
-  const category = isTravel.value ? 'travel' : 'pets';
+  let category = '';
+  if (isTravel.value) category = 'travel';
+  else if (isPets.value) category = 'pets';
+  else if (isGuzi.value) category = 'guzi';
   
   const { data, error } = await supabase
     .from('memories')
@@ -53,6 +59,7 @@ onMounted(async () => {
 
     if (isTravel.value) travelData.value = mappedData;
     if (isPets.value) petData.value = mappedData;
+    if (isGuzi.value) guziData.value = mappedData;
   } else {
     // Fallback defaults if empty
     if (isTravel.value) {
@@ -69,6 +76,11 @@ onMounted(async () => {
         { date: '2023-12-25', title: '圣诞装扮', text: '看他戴着小圣诞帽的样子。他很讨厌，但看起来太可爱了。', color: '#fbc2eb', image: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?q=80&w=800&auto=format&fit=crop' },
         { date: '2023-11-05', title: '领养日', text: '欢迎回家，小伙计！一段美好友谊的开始。', color: '#a6c1ee', image: 'https://images.unsplash.com/photo-1587300003388-59208cc962cb?q=80&w=800&auto=format&fit=crop' },
       ];
+    } else if (isGuzi.value) {
+      guziData.value = [
+        { date: '2024-03-01', title: '限量版徽章', text: '终于收到了这套限量版徽章！做工非常精致。', color: '#ff9a9e', image: 'https://images.unsplash.com/photo-1606787366850-de6330128bfc?q=80&w=800&auto=format&fit=crop' },
+        { date: '2024-02-14', title: '痛包展示', text: '带着痛包去漫展！收获了很多好评。', color: '#fad0c4', image: 'https://images.unsplash.com/photo-1581557991964-125469da3b8a?q=80&w=800&auto=format&fit=crop' },
+      ];
     }
   }
 });
@@ -76,8 +88,44 @@ onMounted(async () => {
 const timelineData = computed(() => {
   if (isTravel.value) return travelData.value;
   if (isPets.value) return petData.value;
+  if (isGuzi.value) return guziData.value;
   return [];
 });
+
+// Group data by date for stacking
+const groupedTimelineData = computed(() => {
+  const groups = {};
+  timelineData.value.forEach(item => {
+    if (!groups[item.date]) {
+      groups[item.date] = {
+        date: item.date,
+        items: []
+      };
+    }
+    groups[item.date].items.push(item);
+  });
+  
+  // Convert to array and sort by date descending
+  return Object.values(groups).sort((a, b) => new Date(b.date) - new Date(a.date));
+});
+
+// Card Stack Logic
+const cardStacks = reactive({}); // Track current top card index for each date group
+
+const getStackOrder = (groupIndex, cardIndex, totalCards) => {
+  if (!cardStacks[groupIndex]) cardStacks[groupIndex] = 0;
+  const currentIndex = cardStacks[groupIndex];
+  
+  // Calculate position in the visual stack (0 = top, 1 = second, etc.)
+  let visualPosition = (cardIndex - currentIndex + totalCards) % totalCards;
+  return visualPosition;
+};
+
+const nextCard = (groupIndex, totalCards) => {
+  if (totalCards <= 1) return;
+  if (!cardStacks[groupIndex]) cardStacks[groupIndex] = 0;
+  cardStacks[groupIndex] = (cardStacks[groupIndex] + 1) % totalCards;
+};
 
 // Add New Card Logic
 const showModal = ref(false);
@@ -143,10 +191,15 @@ const saveCard = async () => {
     // Random fallback color
     const fallbackColor = '#'+Math.floor(Math.random()*16777215).toString(16);
 
+    let category = '';
+    if (isTravel.value) category = 'travel';
+    else if (isPets.value) category = 'pets';
+    else if (isGuzi.value) category = 'guzi';
+
     const { data, error } = await supabase
       .from('memories')
       .insert([{
-        category: isTravel.value ? 'travel' : 'pets',
+        category: category,
         date: newCard.date,
         title: newCard.title,
         description: newCard.text, // Note: mapped to 'text' in template? Need to check usage
@@ -170,6 +223,7 @@ const saveCard = async () => {
 
     if (isTravel.value) travelData.value.unshift(uiMemory);
     else if (isPets.value) petData.value.unshift(uiMemory);
+    else if (isGuzi.value) guziData.value.unshift(uiMemory);
 
     closeModal();
   } catch (e) {
@@ -241,23 +295,43 @@ const saveCard = async () => {
     <!-- Timeline View (ID 1 & 2) -->
     <div v-else class="timeline-container">
       <div class="timeline">
-        <div v-for="(item, index) in timelineData" :key="index" class="timeline-item">
+        <div v-for="(group, groupIndex) in groupedTimelineData" :key="group.date" class="timeline-item">
           <div class="timeline-marker"></div>
-          <div class="timeline-date">{{ item.date }}</div>
-          <div class="card">
-            <!-- Updated Image Display -->
-            <div v-if="item.image" class="card-image-container">
-              <img :src="item.image" alt="Memory" class="card-img-display" />
-            </div>
-            <div v-else class="card-image-container placeholder" :style="{ backgroundColor: item.color }">
-              <span>无图片</span>
+          <div class="timeline-date">{{ group.date }}</div>
+          
+          <div class="card-stack" @click="nextCard(groupIndex, group.items.length)" :class="{ 'is-stacked': group.items.length > 1 }">
+            <div 
+              v-for="(item, cardIndex) in group.items" 
+              :key="cardIndex"
+              class="card card-stack-item"
+              :style="{ 
+                '--stack-order': getStackOrder(groupIndex, cardIndex, group.items.length),
+                zIndex: group.items.length - getStackOrder(groupIndex, cardIndex, group.items.length)
+              }"
+            >
+              <!-- Updated Image Display -->
+              <div v-if="item.image" class="card-image-container">
+                <img :src="item.image" alt="Memory" class="card-img-display" />
+              </div>
+              <div v-else class="card-image-container placeholder" :style="{ backgroundColor: item.color }">
+                <span>无图片</span>
+              </div>
+              
+              <div class="card-content">
+                <h2>{{ item.title }}</h2>
+                <p>{{ item.text }}</p>
+                <div v-if="group.items.length > 1" class="stack-indicator">
+                  {{ getStackOrder(groupIndex, cardIndex, group.items.length) + 1 }} / {{ group.items.length }}
+                </div>
+              </div>
             </div>
             
-            <div class="card-content">
-              <h2>{{ item.title }}</h2>
-              <p>{{ item.text }}</p>
+            <!-- Stack hint for user -->
+            <div v-if="group.items.length > 1" class="stack-hint">
+              点击切换
             </div>
           </div>
+
         </div>
       </div>
       <button class="fab" @click="openModal">+</button>
@@ -528,10 +602,86 @@ const saveCard = async () => {
 }
 
 .card {
-  background: transparent;
-  border: none;
-  box-shadow: none;
-  margin-bottom: 20px;
+  background: #1a1a1a; /* Need background to cover cards below */
+  border: 1px solid rgba(255,255,255,0.1);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  border-radius: 16px;
+  overflow: hidden;
+  padding-bottom: 20px;
+}
+
+/* Card Stack Styles */
+.card-stack {
+  position: relative;
+  /* Reserve height based on a typical card, or use JS to set height. 
+     For simplicity, let's assume a min-height or use grid stacking.
+     Grid stacking is easiest to keep parent height dynamic based on content. */
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+.card-stack-item {
+  grid-area: 1 / 1; /* Stack all items on top of each other */
+  transition: all 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
+  /* Default state (top card) */
+  transform: translateY(0) scale(1);
+  opacity: 1;
+  pointer-events: auto;
+  background: #1a1a1a; /* Ensure opaque background */
+}
+
+/* Stack Logic using CSS Var from inline style */
+.card-stack-item[style*="--stack-order: 0"] {
+  /* Top card */
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+
+.card-stack-item[style*="--stack-order: 1"] {
+  /* Second card */
+  transform: translateY(15px) scale(0.96);
+  opacity: 0.8;
+  z-index: -1; /* visual layering handled by inline z-index, but good fallback */
+}
+
+.card-stack-item[style*="--stack-order: 2"] {
+  /* Third card */
+  transform: translateY(30px) scale(0.92);
+  opacity: 0.6;
+}
+
+.card-stack-item[style*="--stack-order"]:not([style*="--stack-order: 0"]):not([style*="--stack-order: 1"]):not([style*="--stack-order: 2"]) {
+  /* Cards deeper in stack */
+  transform: translateY(45px) scale(0.9);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.stack-indicator {
+  font-size: 0.8rem;
+  color: #666;
+  margin-top: 10px;
+  text-align: right;
+  padding-right: 10px;
+}
+
+.stack-hint {
+  position: absolute;
+  top: -25px;
+  right: 0;
+  font-size: 0.8rem;
+  color: #646cff;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.card-stack.is-stacked:hover .stack-hint {
+  opacity: 1;
+}
+
+.card-stack.is-stacked {
+  cursor: pointer;
+  padding-bottom: 40px; /* Extra space for stack effect at bottom */
 }
 
 /* New Image Styles */
@@ -542,9 +692,9 @@ const saveCard = async () => {
   align-items: center;
   justify-content: center;
   margin-bottom: 15px;
-  border-radius: 12px;
+  border-radius: 0; /* Full width top */
   overflow: hidden;
-  background: transparent; /* Completely transparent */
+  background: transparent; 
 }
 
 .card-image-container.placeholder {
