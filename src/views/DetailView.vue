@@ -2,6 +2,7 @@
 import { useRouter, useRoute } from 'vue-router';
 import { computed, ref, reactive, onMounted } from 'vue';
 import { supabase } from '../supabase';
+import LivePhoto from '../components/LivePhoto.vue';
 
 const router = useRouter();
 const route = useRoute();
@@ -54,7 +55,8 @@ onMounted(async () => {
     const mappedData = data.map(item => ({
       ...item,
       text: item.description,
-      image: item.image_url
+      image: item.image_url,
+      liveVideoUrl: item.live_video_url
     }));
 
     if (isTravel.value) travelData.value = mappedData;
@@ -134,7 +136,8 @@ const newCard = reactive({
   title: '',
   text: '',
   imageFile: null,
-  imagePreview: null
+  imagePreview: null,
+  videoFile: null
 });
 const isUploading = ref(false);
 
@@ -145,6 +148,7 @@ const openModal = () => {
   newCard.text = '';
   newCard.imageFile = null;
   newCard.imagePreview = null;
+  newCard.videoFile = null;
   showModal.value = true;
 };
 
@@ -161,6 +165,12 @@ const handleImageUpload = (event) => {
   const reader = new FileReader();
   reader.onload = (e) => { newCard.imagePreview = e.target.result; };
   reader.readAsDataURL(file);
+};
+
+const handleVideoUpload = (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+  newCard.videoFile = file;
 };
 
 const saveCard = async () => {
@@ -188,6 +198,23 @@ const saveCard = async () => {
       imageUrl = publicUrl;
     }
 
+    let videoUrl = null;
+    if (newCard.videoFile) {
+      const fileExt = newCard.videoFile.name.split('.').pop();
+      const fileName = `memory-video-${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const { error: uploadError } = await supabase.storage
+        .from('tape-assets')
+        .upload(`memories/${fileName}`, newCard.videoFile);
+      
+      if (uploadError) throw uploadError;
+      
+      const { data: { publicUrl } } = supabase.storage
+        .from('tape-assets')
+        .getPublicUrl(`memories/${fileName}`);
+      
+      videoUrl = publicUrl;
+    }
+
     // Random fallback color
     const fallbackColor = '#'+Math.floor(Math.random()*16777215).toString(16);
 
@@ -204,6 +231,7 @@ const saveCard = async () => {
         title: newCard.title,
         description: newCard.text, // Note: mapped to 'text' in template? Need to check usage
         image_url: imageUrl, // mapped to 'image' in template?
+        live_video_url: videoUrl,
         color: fallbackColor
       }])
       .select();
@@ -218,7 +246,8 @@ const saveCard = async () => {
     const uiMemory = {
       ...newMemory,
       text: newMemory.description,
-      image: newMemory.image_url
+      image: newMemory.image_url,
+      liveVideoUrl: newMemory.live_video_url
     };
 
     if (isTravel.value) travelData.value.unshift(uiMemory);
@@ -311,7 +340,14 @@ const saveCard = async () => {
             >
               <!-- Updated Image Display -->
               <div v-if="item.image" class="card-image-container">
-                <img :src="item.image" alt="Memory" class="card-img-display" />
+                <LivePhoto 
+                   v-if="item.liveVideoUrl" 
+                   :photoSrc="item.image" 
+                   :videoSrc="item.liveVideoUrl" 
+                   className="card-img-display" 
+                   alt="Memory Live Photo"
+                 />
+                <img v-else :src="item.image" alt="Memory" class="card-img-display" />
               </div>
               <div v-else class="card-image-container placeholder" :style="{ backgroundColor: item.color }">
                 <span>无图片</span>
@@ -350,10 +386,17 @@ const saveCard = async () => {
           <input v-model="newCard.title" type="text" placeholder="发生了什么？" />
         </div>
         <div class="form-group">
-          <label>图片</label>
+          <label>图片 (Live Photo 静态部分)</label>
           <input type="file" accept="image/*" @change="handleImageUpload" />
-          <div v-if="newCard.image" class="image-preview">
-            <img :src="newCard.image" alt="Preview" />
+          <div v-if="newCard.imagePreview" class="image-preview">
+            <img :src="newCard.imagePreview" alt="Preview" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Live Video (可选 - .mov/.mp4)</label>
+          <input type="file" accept="video/*" @change="handleVideoUpload" />
+          <div v-if="newCard.videoFile" class="file-name">
+            已选择视频: {{ newCard.videoFile.name }}
           </div>
         </div>
         <div class="form-group">
@@ -769,16 +812,23 @@ const saveCard = async () => {
   justify-content: center;
   z-index: 300;
   animation: fadeIn 0.3s ease;
+  padding: 20px; /* Add padding to prevent edge touching */
+  box-sizing: border-box;
 }
 
 .modal {
   background: #1a1a1a;
   padding: 30px;
   border-radius: 16px;
-  width: 90%;
+  width: 100%;
   max-width: 500px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+  /* Scrollable Logic */
+  max-height: 90vh; /* Limit height */
+  overflow-y: auto; /* Enable scroll */
+  display: flex;
+  flex-direction: column;
 }
 
 .modal h2 {
